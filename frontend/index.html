@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Weather Pro — Tech Assessments 1 & 2</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+
+</head>
+<body>
+<header class="app-header">
+  <div class="brand">
+    <span class="logo">⛅</span>
+    <div>
+      <h1>AI Weather Pro</h1>
+      <p class="subtitle">Tech Assessment — Real-time Weather + CRUD + Exports</p>
+    </div>
+  </div>
+  <div class="actions">
+    <button id="infoBtn" class="btn ghost" title="About PM Accelerator">ℹ️ Info</button>
+    <dialog id="infoDialog">
+      <h3>About PM Accelerator</h3>
+      <p>
+        Learn more on LinkedIn: 
+        <a href="https://www.linkedin.com/company/product-manager-accelerator/" target="_blank" rel="noopener">Product Manager Accelerator</a>
+      </p>
+      <p>Built by: <strong>Your Name Here</strong></p>
+      <form method="dialog">
+        <button class="btn">Close</button>
+      </form>
+    </dialog>
+  </div>
+</header>
+
+<main class="container">
+  <!-- INPUT: Location + Date Range -->
+  <section class="card">
+    <h2>Find Weather</h2>
+    <form id="queryForm" class="grid">
+      <div class="field">
+        <label for="locatorType">Location Type</label>
+        <select id="locatorType" required>
+          <option value="auto">Auto-detect (GPS)</option>
+          <option value="name">Town/City/Landmark</option>
+          <option value="postal">Zip/Postal Code</option>
+          <option value="coords">Coordinates (lat,lon)</option>
+        </select>
+      </div>
+
+      <div class="field" id="nameField">
+        <label for="placeName">Place</label>
+        <input id="placeName" type="text" placeholder="e.g., Paris, Eiffel Tower" />
+      </div>
+
+      <div class="field" id="postalField" hidden>
+        <label for="postal">Zip/Postal</label>
+        <input id="postal" type="text" placeholder="e.g., 94016 or SW1A 1AA" />
+      </div>
+
+      <div class="field" id="coordsField" hidden>
+        <label for="coords">Coordinates</label>
+        <input id="coords" type="text" placeholder="lat,lon (e.g., 37.7749,-122.4194)" />
+      </div>
+
+      <div class="field">
+        <label for="startDate">Start Date</label>
+        <input id="startDate" type="date" />
+      </div>
+      <div class="field">
+        <label for="endDate">End Date</label>
+        <input id="endDate" type="date" />
+      </div>
+
+      <div class="row">
+        <button type="submit" class="btn">Get Weather</button>
+        <button id="geoBtn" type="button" class="btn ghost">Use My Location</button>
+        <button id="saveBtn" type="button" class="btn accent">Save (CREATE)</button>
+      </div>
+      <p id="formHelp" class="muted">
+        Tip: Date range is optional for current conditions. Add dates to request historical/forecast spans.
+      </p>
+      <div id="formError" class="error" hidden></div>
+    </form>
+  </section>
+
+  <!-- RESULTS: Current + Forecast -->
+  <section class="grid two">
+    <article class="card">
+      <h3>Current Weather</h3>
+      <div id="currentWeather" class="weather-panel empty">
+        <p class="muted">No data yet.</p>
+      </div>
+    </article>
+    <article class="card">
+      <h3>5-Day Forecast</h3>
+      <div id="forecast" class="forecast-grid empty">
+        <p class="muted">No data yet.</p>
+      </div>
+    </article>
+  </section>
+
+  <!-- CRUD: Read/Update/Delete saved records -->
+  <section class="card">
+    <div class="row spaced">
+      <h2>Saved Requests (CRUD)</h2>
+      <button id="refreshRecords" class="btn ghost">Refresh</button>
+    </div>
+    <div id="recordsWrap" class="table-wrap">
+      <table id="recordsTable">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Location</th>
+            <th>Type</th>
+            <th>Date Range</th>
+            <th>Created</th>
+            <th>Weather Snippet</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody><!-- populated by JS --></tbody>
+      </table>
+    </div>
+    <div id="recordsError" class="error" hidden></div>
+  </section>
+
+  <!-- Exports + Integrations -->
+  <section class="grid two">
+    <article class="card">
+      <h3>Export Data</h3>
+      <div class="row wrap">
+        <button data-export="json" class="btn">Export JSON</button>
+        <button data-export="csv" class="btn">Export CSV</button>
+        <button data-export="xml" class="btn">Export XML</button>
+        <button data-export="markdown" class="btn">Export Markdown</button>
+        <button data-export="pdf" class="btn">Export PDF</button>
+      </div>
+      <p class="muted">Exports operate on saved records.</p>
+      <div id="exportError" class="error" hidden></div>
+    </article>
+
+    <article class="card">
+      <h3>Extras (Optional APIs)</h3>
+      <div class="grid">
+        <div>
+          <label class="block">YouTube Clips for Location</label>
+          <div id="ytResults" class="integrations-grid"></div>
+          <button id="ytBtn" class="btn ghost">Load YouTube</button>
+        </div>
+        <div>
+          <label class="block">Map Preview</label>
+          <iframe id="mapFrame" title="Map" loading="lazy"></iframe>
+          <button id="mapBtn" class="btn ghost">Show Map</button>
+        </div>
+      </div>
+      <p class="muted">These call backend proxy endpoints (you’ll implement later in FastAPI).</p>
+      <div id="extrasError" class="error" hidden></div>
+    </article>
+  </section>
+</main>
+
+<footer class="footer">
+  <small>© <span id="year"></span> Your Name — AI/ML/GenAI Weather App</small>
+</footer>
+
+<script>
+/* ===== Config ===== */
+const API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+  ? 'http://localhost:8000'
+  : ''; // adjust if you deploy behind same origin
+
+/* ===== Elements ===== */
+const infoBtn = document.getElementById('infoBtn');
+const infoDialog = document.getElementById('infoDialog');
+const locatorType = document.getElementById('locatorType');
+const nameField = document.getElementById('nameField');
+const postalField = document.getElementById('postalField');
+const coordsField = document.getElementById('coordsField');
+const queryForm = document.getElementById('queryForm');
+const geoBtn = document.getElementById('geoBtn');
+const saveBtn = document.getElementById('saveBtn');
+const formError = document.getElementById('formError');
+const currentWrap = document.getElementById('currentWeather');
+const forecastWrap = document.getElementById('forecast');
+const recordsTableBody = document.querySelector('#recordsTable tbody');
+const recordsError = document.getElementById('recordsError');
+const refreshRecords = document.getElementById('refreshRecords');
+const exportError = document.getElementById('exportError');
+const ytBtn = document.getElementById('ytBtn');
+const ytResults = document.getElementById('ytResults');
+const mapBtn = document.getElementById('mapBtn');
+const mapFrame = document.getElementById('mapFrame');
+const extrasError = document.getElementById('extrasError');
+document.getElementById('year').textContent = new Date().getFullYear();
+
+/* ===== UI Helpers ===== */
+function show(el, flag=true) { el.hidden = !flag; }
+function setEmpty(el, isEmpty) {
+  el.classList.toggle('empty', !!isEmpty);
+  if (isEmpty) el.innerHTML = '<p class="muted">No data yet.</p>';
+}
+function err(el, msg) {
+  el.textContent = msg;
+  show(el, true);
+  setTimeout(() => show(el, false), 5000);
+}
+function parseCoords(raw) {
+  const m = (raw || '').split(',').map(s => s.trim());
+  if (m.length === 2 && !isNaN(+m[0]) && !isNaN(+m[1])) return { lat:+m[0], lon:+m[1] };
+  return null;
+}
+function currentLocationPromise() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error('Geolocation not supported'));
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+      err => reject(err),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  });
+}
+
+/* ===== Dynamic form behavior ===== */
+locatorType.addEventListener('change', () => {
+  const v = locatorType.value;
+  nameField.hidden   = !(v === 'name');
+  postalField.hidden = !(v === 'postal');
+  coordsField.hidden = !(v === 'coords');
+});
+
+infoBtn.addEventListener('click', () => infoDialog.showModal());
+
+geoBtn.addEventListener('click', async () => {
+  try {
+    const { lat, lon } = await currentLocationPromise();
+    locatorType.value = 'coords';
+    locatorType.dispatchEvent(new Event('change'));
+    document.getElementById('coords').value = `${lat.toFixed(6)},${lon.toFixed(6)}`;
+  } catch (e) {
+    err(formError, e.message || 'Failed to fetch location.');
+  }
+});
+
+/* ===== API Helpers ===== */
+async function api(path, opts={}) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', ...(opts.headers||{}) },
+  });
+  if (!res.ok) throw new Error((await res.text()) || res.statusText);
+  const ctype = res.headers.get('content-type') || '';
+  return ctype.includes('application/json') ? res.json() : res.text();
+}
+function buildQueryPayload(fromForm=true) {
+  const type = locatorType.value;
+  const start = document.getElementById('startDate').value || null;
+  const end   = document.getElementById('endDate').value || null;
+
+  let payload = { locator_type: type, start_date: start, end_date: end };
+
+  if (type === 'name')   payload.place = document.getElementById('placeName').value.trim();
+  if (type === 'postal') payload.postal = document.getElementById('postal').value.trim();
+  if (type === 'coords') {
+    const coords = parseCoords(document.getElementById('coords').value);
+    if (!coords) throw new Error('Coordinates must be "lat,lon".');
+    payload.coords = coords;
+  }
+  if (type === 'auto') payload.autodetect = true;
+
+  // basic date sanity
+  if (start && end && new Date(start) > new Date(end)) {
+    throw new Error('Start date cannot be after end date.');
+  }
+  return payload;
+}
+
+/* ===== Weather Fetch (Current + 5-day) ===== */
+async function getWeather(payload) {
+  // Current
+  const current = await api('/api/weather/current', {
+    method: 'POST', body: JSON.stringify(payload)
+  });
+  renderCurrent(current);
+
+  // 5-day
+  const forecast = await api('/api/weather/forecast', {
+    method: 'POST', body: JSON.stringify(payload)
+  });
+  renderForecast(forecast);
+}
+
+function iconFor(code) {
+  // backend can pass a standard condition code; fall back to emoji
+  const map = {
+    'clear':'☀️','partly-cloudy':'⛅','cloudy':'☁️','rain':'🌧️','thunder':'⛈️',
+    'snow':'❄️','fog':'🌫️','wind':'🌬️','drizzle':'🌦️'
+  };
+  return map[code] || '⛅';
+}
+
+function renderCurrent(d) {
+  setEmpty(currentWrap, !d || !d.location);
+  if (!d || !d.location) return;
+
+  currentWrap.innerHTML = `
+    <div class="current-grid">
+      <div class="stat">
+        <div class="big">${iconFor(d.condition_code)} ${Math.round(d.temp_c)}°C</div>
+        <div class="muted">${d.condition_text || ''}</div>
+      </div>
+      <div class="meta">
+        <div><strong>Location:</strong> ${d.location}</div>
+        <div><strong>Feels Like:</strong> ${Math.round(d.feels_like_c)}°C</div>
+        <div><strong>Humidity:</strong> ${d.humidity}%</div>
+        <div><strong>Wind:</strong> ${d.wind_kph} kph</div>
+        <div><strong>Updated:</strong> ${new Date(d.observed_at).toLocaleString()}</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderForecast(arr) {
+  setEmpty(forecastWrap, !Array.isArray(arr) || arr.length === 0);
+  if (!Array.isArray(arr) || arr.length === 0) return;
+  forecastWrap.innerHTML = arr.slice(0,5).map(day => `
+    <div class="forecast-card">
+      <div class="date">${new Date(day.date).toDateString()}</div>
+      <div class="icon">${iconFor(day.condition_code)}</div>
+      <div class="temps"><span>${Math.round(day.max_c)}°</span> / <span>${Math.round(day.min_c)}°</span></div>
+      <div class="muted">${day.condition_text || ''}</div>
+      <div class="meta-sm">💧 ${day.precip_mm ?? 0} mm · 💨 ${day.wind_kph ?? 0} kph</div>
+    </div>
+  `).join('');
+}
+
+/* ===== CRUD: Records ===== */
+async function listRecords() {
+  const data = await api('/api/records');
+  renderRecords(data);
+}
+function renderRecords(rows) {
+  recordsTableBody.innerHTML = (rows || []).map(r => `
+    <tr>
+      <td>${r.id}</td>
+      <td>${r.location_display || '-'}</td>
+      <td>${r.locator_type}</td>
+      <td>${r.start_date || ''} → ${r.end_date || ''}</td>
+      <td>${new Date(r.created_at).toLocaleString()}</td>
+      <td>${(r.weather && r.weather.summary) ? r.weather.summary : '-'}</td>
+      <td class="actions">
+        <button class="btn xs ghost" data-edit="${r.id}">Edit</button>
+        <button class="btn xs danger" data-del="${r.id}">Delete</button>
+        <button class="btn xs" data-refresh="${r.id}">Refresh</button>
+      </td>
+    </tr>
+  `).join('');
+}
+recordsTableBody.addEventListener('click', async (e) => {
+  const editId = e.target.getAttribute('data-edit');
+  const delId = e.target.getAttribute('data-del');
+  const refId = e.target.getAttribute('data-refresh');
+  try {
+    if (editId) {
+      const row = await api(`/api/records/${editId}`);
+      // Preload into form for update
+      locatorType.value = row.locator_type; locatorType.dispatchEvent(new Event('change'));
+      if (row.locator_type === 'name')   document.getElementById('placeName').value = row.place || '';
+      if (row.locator_type === 'postal') document.getElementById('postal').value = row.postal || '';
+      if (row.locator_type === 'coords') document.getElementById('coords').value = `${row.coords.lat},${row.coords.lon}`;
+      document.getElementById('startDate').value = row.start_date || '';
+      document.getElementById('endDate').value = row.end_date || '';
+
+      // Submit update
+      const ok = confirm('Update this record with current form values?');
+      if (ok) {
+        const payload = buildQueryPayload();
+        await api(`/api/records/${editId}`, { method:'PUT', body: JSON.stringify(payload) });
+        await listRecords();
+      }
+    }
+    if (delId) {
+      const ok = confirm(`Delete record ${delId}?`);
+      if (ok) {
+        await api(`/api/records/${delId}`, { method:'DELETE' });
+        await listRecords();
+      }
+    }
+    if (refId) {
+      await api(`/api/records/${refId}/refresh`, { method:'POST' });
+      await listRecords();
+    }
+  } catch (ex) { err(recordsError, ex.message || 'Action failed'); }
+});
+
+/* ===== Exports ===== */
+document.querySelectorAll('[data-export]').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const fmt = btn.getAttribute('data-export');
+    try {
+      const res = await fetch(`${API_BASE}/api/exports?format=${encodeURIComponent(fmt)}`);
+      if (!res.ok) throw new Error(await res.text());
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `weather_export.${fmt === 'markdown' ? 'md' : fmt}`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch (ex) { err(exportError, ex.message || 'Export failed'); }
+  });
+});
+
+/* ===== Integrations (Optional) ===== */
+ytBtn.addEventListener('click', async () => {
+  extrasError.hidden = true;
+  ytResults.innerHTML = '';
+  try {
+    const q = currentWrap.querySelector('.meta')?.textContent || 'travel weather';
+    const vids = await api(`/api/integrations/youtube?q=${encodeURIComponent(q)}`);
+    ytResults.innerHTML = (vids || []).slice(0,6).map(v => `
+      <a class="yt-card" href="${v.url}" target="_blank" rel="noopener">
+        <img src="${v.thumbnail}" alt="${v.title}" />
+        <div class="yt-title">${v.title}</div>
+      </a>
+    `).join('');
+  } catch (ex) { err(extrasError, ex.message || 'YouTube fetch failed'); }
+});
+
+mapBtn.addEventListener('click', async () => {
+  extrasError.hidden = true;
+  try {
+    const data = currentWrap.querySelector('.meta')?.textContent || '';
+    // Ask backend to resolve last query coordinates
+    const loc = await api('/api/integrations/map-coords');
+    if (!loc || !('lat' in loc)) throw new Error('No coordinates available');
+    const { lat, lon } = loc;
+    // Use a backend-proxied map URL or a public map tile/URL constructed server-side
+    mapFrame.src = `${API_BASE}/api/integrations/map-embed?lat=${lat}&lon=${lon}`;
+  } catch (ex) { err(extrasError, ex.message || 'Map load failed'); }
+});
+
+/* ===== Form submit + Save ===== */
+queryForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  formError.hidden = true;
+  try {
+    const payload = buildQueryPayload();
+    await getWeather(payload);
+  } catch (ex) { err(formError, ex.message || 'Invalid input'); }
+});
+
+saveBtn.addEventListener('click', async () => {
+  formError.hidden = true;
+  try {
+    const payload = buildQueryPayload();
+    const saved = await api('/api/records', { method:'POST', body: JSON.stringify(payload) });
+    await listRecords();
+    alert(`Saved with ID ${saved.id}`);
+  } catch (ex) { err(formError, ex.message || 'Save failed'); }
+});
+
+/* ===== Initial load ===== */
+listRecords();
+</script>
+</body>
+</html>

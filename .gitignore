@@ -1,0 +1,12 @@
+# Node
+node_modules/
+dist/
+.env
+frontend/.env.local
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+backend/data/chroma/
