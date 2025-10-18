@@ -21,7 +21,8 @@ from chromadb.config import Settings
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.utils import simpleSplit
-
+import os
+port = int(os.environ.get("PORT", 8000))
 # ---------------- Config ----------------
 load_dotenv()
 GOOGLE_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
